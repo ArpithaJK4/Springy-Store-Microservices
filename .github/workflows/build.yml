@@ -15,6 +15,7 @@ on:
 
   push:
     branches: [main, master, patch-1]
+
   pull_request:
     branches: [main, master, patch-1]
 
@@ -32,11 +33,40 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build Spring Boot apps
-        run: mvn clean package -DskipTests
+      - name: Configure Maven Central Mirror
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <profiles>
+              <profile>
+                <id>central</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>false</enabled></snapshots>
+                  </repository>
+                </repositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>central</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+
+      - name: Build Spring Boot apps (skip tests)
+        run: mvn clean package -DskipTests --no-transfer-progress
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
       - name: Build & Run Docker Compose
-        run: docker-compose -f ${{ github.event.inputs.compose_file || 'docker-compose.yml' }} up --build -d
+        run: |
+          COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
+          if [ -z "$COMPOSE_FILE" ]; then
+            COMPOSE_FILE="docker-compose.yml"
+          fi
+          docker-compose -f "$COMPOSE_FILE" up --build -d
