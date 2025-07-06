@@ -20,6 +20,7 @@
     <properties>
         <!-- Libraries versions -->
         <spring.boot.dependencies.version>2.3.0.M4</spring.boot.dependencies.version>
+        <springfox.version>3.0.0</springfox.version>
     </properties>
 
     <dependencyManagement>
@@ -39,6 +40,13 @@
         <dependency>
             <groupId>io.springfox</groupId>
             <artifactId>springfox-swagger2</artifactId>
+            <version>${springfox.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.springfox</groupId>
+            <artifactId>springfox-swagger-ui</artifactId>
+            <version>${springfox.version}</version>
+        </dependency>
+        <!-- End - API documentation dependencies -->
     </dependencies>
 </project>
