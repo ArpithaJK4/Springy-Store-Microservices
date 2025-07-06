@@ -15,7 +15,6 @@ on:
 
   push:
     branches: [main, master, patch-1]
-
   pull_request:
     branches: [main, master, patch-1]
 
@@ -57,7 +56,12 @@ jobs:
           </settings>
           EOF
 
-      - name: Build Spring Boot apps (skip tests)
+      - name: Force remove SNAPSHOT of springfox-swagger2
+        run: |
+          mvn dependency:purge-local-repository \
+            -DmanualInclude="io.springfox:springfox-swagger2"
+
+      - name: Build Spring Boot apps
         run: mvn clean package -DskipTests --no-transfer-progress
 
       - name: Set up Docker Buildx
@@ -65,8 +69,5 @@ jobs:
 
       - name: Build & Run Docker Compose
         run: |
-          COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
-          if [ -z "$COMPOSE_FILE" ]; then
-            COMPOSE_FILE="docker-compose.yml"
-          fi
+          COMPOSE_FILE="${{ github.event.inputs.compose_file || 'docker-compose.yml' }}"
           docker-compose -f "$COMPOSE_FILE" up --build -d
