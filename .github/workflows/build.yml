@@ -1,10 +1,22 @@
-name: CI - Build and Compose Up
+name: CI - Multi Compose Builder
 
 on:
+  workflow_dispatch:
+    inputs:
+      compose_file:
+        description: 'Choose docker-compose file'
+        required: true
+        default: 'docker-compose.yml'
+        type: choice
+        options:
+          - docker-compose.yml
+          - docker-compose-partitions.yml
+          - dockercompose.kafka.yml
+
   push:
-    branches: [main, master,patch-1]
+    branches: [main, master, patch-1]
   pull_request:
-    branches: [main, master,patch-1]
+    branches: [main, master, patch-1]
 
 jobs:
   build:
@@ -14,12 +26,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Spring Boot apps
+        run: mvn clean package -DskipTests
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Set up Docker Compose
-        run: sudo apt-get update && sudo apt-get install -y docker-compose
-
-      - name: Build and run containers
-        run: |
-          docker-compose -f docker-compose.yml up --build -d
+      - name: Build & Run Docker Compose
+        run: docker-compose -f ${{ github.event.inputs.compose_file || 'docker-compose.yml' }} up --build -d
