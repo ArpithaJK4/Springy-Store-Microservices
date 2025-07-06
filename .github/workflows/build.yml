@@ -1,0 +1,44 @@
+name: CI - Build and Compose Up
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      compose_file:
+        description: 'Choose docker-compose file'
+        required: true
+        default: 'docker-compose.yml'
+        type: choice
+        options:
+          - docker-compose.yml
+          - docker-compose.kafka.yml
+          - docker-compose-partitions.yml
+
+jobs:
+  build-and-compose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create .env file
+        run: |
+          echo "CONFIG_SERVER_USR=admin" >> .env
+          echo "CONFIG_SERVER_PWD=admin123" >> .env
+          echo "CONFIG_SERVER_ENCRYPT_KEY=testkey123" >> .env
+
+      - name: Show selected compose file
+        run: echo "Selected Compose File: ${{ github.event.inputs.compose_file || 'docker-compose.yml' }}"
+
+      - name: Docker Compose Build and Up
+        run: |
+          docker compose -f ${{ github.event.inputs.compose_file || 'docker-compose.yml' }} up --build -d
+
+      - name: Check running containers
+        run: docker ps -a
