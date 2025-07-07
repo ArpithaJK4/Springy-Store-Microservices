@@ -1,52 +1,83 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+name: CI - Multi Compose Builder
 
-    <parent>
-        <groupId>com.siriusxi.ms.store</groupId>
-        <artifactId>store-build-chassis</artifactId>
-        <version>1.0-SNAPSHOT</version>
-        <relativePath>../../store-base/store-build-chassis/pom.xml</relativePath>
-    </parent>
+on:
+  workflow_dispatch:
+    inputs:
+      compose_file:
+        description: 'Choose docker-compose file'
+        required: true
+        default: 'docker-compose.yml'
+        type: choice
+        options:
+          - docker-compose.yml
+          - docker-compose-partitions.yml
+          - dockercompose.kafka.yml
 
-    <artifactId>store-api</artifactId>
-    <version>1.0-SNAPSHOT</version>
-    <name>Store APIs</name>
-    <description>Project that define all Springy Store DTOs and REST APIs contracts</description>
-    <packaging>jar</packaging>
+  push:
+    branches: [main, master, patch-1]
+  pull_request:
+    branches: [main, master, patch-1]
 
-    <properties>
-        <!-- Libraries versions -->
-        <spring.boot.dependencies.version>2.3.0.M4</spring.boot.dependencies.version>
-        <springfox.version>3.0.0</springfox.version>
-    </properties>
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring.boot.dependencies.version}</version>
-                <scope>import</scope>
-                <type>pom</type>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    <dependencies>
-        <!-- Start - API documentation dependencies -->
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger2</artifactId>
-            <version>${springfox.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger-ui</artifactId>
-            <version>${springfox.version}</version>
-        </dependency>
-        <!-- End - API documentation dependencies -->
-    </dependencies>
-</project>
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configure Maven Central Mirror
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <profiles>
+              <profile>
+                <id>central</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>false</enabled></snapshots>
+                  </repository>
+                </repositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>central</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+
+      - name: Force remove invalid SNAPSHOT of springfox-swagger2
+        run: |
+          mvn dependency:purge-local-repository \
+            -DmanualInclude="io.springfox:springfox-swagger2"
+
+      - name: Fix Springfox version in pom.xml
+        run: |
+          find . -name "pom.xml" -exec sed -i 's/<version>3.0.0-SNAPSHOT<\/version>/<version>3.0.0<\/version>/g' {} \;
+
+      - name: Ensure Java 17 compatibility in compiler plugin
+        run: |
+          find . -name "pom.xml" -exec sed -i 's/<source>15<\/source>/<source>17<\/source>/g' {} \;
+          find . -name "pom.xml" -exec sed -i 's/<target>15<\/target>/<target>17<\/target>/g' {} \;
+          find . -name "pom.xml" -exec sed -i '/--enable-preview/d' {} \;
+
+      - name: Build Spring Boot apps
+        run: mvn clean package -DskipTests --no-transfer-progress
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build & Run Docker Compose
+        run: |
+          COMPOSE_FILE="${{ github.event.inputs.compose_file || 'docker-compose.yml' }}"
+          docker-compose -f "$COMPOSE_FILE" up --build -d
