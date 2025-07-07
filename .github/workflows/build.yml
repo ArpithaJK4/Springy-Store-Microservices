@@ -56,9 +56,11 @@ jobs:
           </settings>
           EOF
 
-      - name: Fix malformed pom.xml headers
+      - name: 🧹 Auto-fix malformed pom.xml files
         run: |
-          find . -name "pom.xml" -exec sed -i '1s/^[^<]*//' {} \;
+          find . -name "pom.xml" | while read file; do
+            awk 'BEGIN{fixed=0} NR==1 && $0 !~ /^<\?xml/{fixed=1; next} {if(!fixed || $0 ~ /^<\?xml/){print}}' "$file" > "$file.fixed" && mv "$file.fixed" "$file"
+          done
 
       - name: Force remove SNAPSHOT of springfox-swagger2
         run: |
@@ -73,8 +75,5 @@ jobs:
 
       - name: Build & Run Docker Compose
         run: |
-          COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
-          if [ -z "$COMPOSE_FILE" ]; then
-            COMPOSE_FILE="docker-compose.yml"
-          fi
+          COMPOSE_FILE="${{ github.event.inputs.compose_file || 'docker-compose.yml' }}"
           docker-compose -f "$COMPOSE_FILE" up --build -d
