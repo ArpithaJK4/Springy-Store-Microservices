@@ -73,5 +73,8 @@ jobs:
 
       - name: Build & Run Docker Compose
         run: |
-          COMPOSE_FILE="${{ github.event.inputs.compose_file || 'docker-compose.yml' }}"
+          COMPOSE_FILE="${{ github.event.inputs.compose_file }}"
+          if [ -z "$COMPOSE_FILE" ]; then
+            COMPOSE_FILE="docker-compose.yml"
+          fi
           docker-compose -f "$COMPOSE_FILE" up --build -d
