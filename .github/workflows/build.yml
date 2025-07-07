@@ -56,6 +56,10 @@ jobs:
           </settings>
           EOF
 
+      - name: Fix malformed pom.xml headers
+        run: |
+          find . -name "pom.xml" -exec sed -i '1s/^[^<]*//' {} \;
+
       - name: Force remove SNAPSHOT of springfox-swagger2
         run: |
           mvn dependency:purge-local-repository \
